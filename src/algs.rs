@@ -1,5 +1,5 @@
-use crate::{instance::Instance, pred::Prediction};
-use log::{trace, info};
+use crate::{instance::Instance, pred::Prediction, Opt};
+use log::{info, trace};
 
 #[derive(Clone, Debug)]
 pub struct Job {
@@ -29,8 +29,14 @@ impl Job {
 }
 
 pub fn adaptive_round_robin(instance: &Instance, pred: &Prediction, lambda: f64) -> f64 {
-    let mut jobs: Vec<Job> = instance.jobs.iter().zip(pred.jobs.iter()).enumerate().map(|(idx, (real, pred))| Job::new(idx, *real, *pred)).collect();
-    jobs.sort_by(|a,b| a.predicted_length.partial_cmp(&b.predicted_length).unwrap());
+    let mut jobs: Vec<Job> = instance
+        .jobs
+        .iter()
+        .zip(pred.jobs.iter())
+        .enumerate()
+        .map(|(idx, (real, pred))| Job::new(idx, *real, *pred))
+        .collect();
+    jobs.sort_by(|a, b| a.predicted_length.partial_cmp(&b.predicted_length).unwrap());
 
     let mut env = ArrEnv {
         remaining_jobs: jobs,
@@ -38,7 +44,7 @@ pub fn adaptive_round_robin(instance: &Instance, pred: &Prediction, lambda: f64)
         time: 0.0,
         active_to_process: None,
         cost: 0.0,
-        lambda
+        lambda,
     };
 
     while env.simulate() {}
@@ -85,9 +91,7 @@ impl ArrEnv {
 
             active_job.process(stepsize);
             self.rr.iter_mut().for_each(|j| j.process(stepsize));
-            let finished = self
-                .rr
-                .drain_filter(|j| if j.is_finished() { true } else { false });
+            let finished = self.rr.drain_filter(|j| j.is_finished());
             self.cost += finished.count() as f64 * self.time;
 
             if active_job.is_finished() {
@@ -119,9 +123,7 @@ impl ArrEnv {
                 self.time += stepsize * self.rr.len() as f64; // divide rr equally
 
                 self.rr.iter_mut().for_each(|j| j.process(stepsize));
-                let finished = self
-                    .rr
-                    .drain_filter(|j| if j.is_finished() { true } else { false });
+                let finished = self.rr.drain_filter(|j| j.is_finished());
                 self.cost += finished.count() as f64 * self.time;
                 return true;
             } else {
@@ -131,7 +133,80 @@ impl ArrEnv {
     }
 }
 
+pub fn two_stage_schedule(instance: &Instance, pred: &Prediction, lambda: f64) -> f64 {
+    let mut jobs: Vec<Job> = instance
+        .jobs
+        .iter()
+        .zip(pred.jobs.iter())
+        .enumerate()
+        .map(|(idx, (real, pred))| Job::new(idx, *real, *pred))
+        .collect();
+    jobs.sort_by(|a, b| a.predicted_length.partial_cmp(&b.predicted_length).unwrap());
 
+    let mut time = 0.0;
+    let mut cost = 0.0;
+    let mut misprediction_detected = false;
+
+    let max_rr = lambda * pred.num_jobs() as f64 * pred.opt()
+        / num_integer::binomial(instance.num_jobs(), 2) as f64;
+
+    // RR until time == max_rr
+    while !jobs.is_empty() && (time < max_rr || misprediction_detected) {
+        let n = jobs.len() as f64;
+        let mut stepsize = jobs
+            .iter()
+            .min_by(|a, b| a.remaining.partial_cmp(&b.remaining).unwrap())
+            .unwrap()
+            .remaining;
+
+        if time + stepsize * n > max_rr {
+            stepsize = (max_rr - time) / n;
+        }
+        time += stepsize * n; // divide rr equally
+
+        jobs.iter_mut().for_each(|j| j.process(stepsize));
+        let finished = jobs.drain_filter(|j| {
+            if j.is_finished() {
+                if j.predicted_length != j.total_length {
+                    misprediction_detected = true;
+                }
+                true
+            } else {
+                false
+            }
+        });
+        cost += finished.count() as f64 * time;
+    }
+    assert!(time <= max_rr || !misprediction_detected);
+
+    // Schedule remaining jobs in predicted order; break if a misprediction is being detected.
+    while !misprediction_detected && !jobs.is_empty() {
+        let job = jobs.remove(0);
+        time += job.remaining;
+        cost += time;
+        if job.total_length != job.predicted_length {
+            misprediction_detected = true;
+        }
+    }
+
+    // RR until all jobs finish.
+    while !jobs.is_empty() {
+        let n = jobs.len() as f64;
+        let stepsize = jobs
+            .iter()
+            .min_by(|a, b| a.remaining.partial_cmp(&b.remaining).unwrap())
+            .unwrap()
+            .remaining;
+
+        time += stepsize * n; // divide rr equally
+
+        jobs.iter_mut().for_each(|j| j.process(stepsize));
+        let finished = jobs.drain_filter(|j| j.is_finished());
+        cost += finished.count() as f64 * time;
+    }
+
+    cost
+}
 
 #[cfg(test)]
 mod test_algs {
@@ -140,35 +215,72 @@ mod test_algs {
     use super::*;
 
     #[test]
-    fn test_rr() {
-        let instance: Instance = vec![1.0, 2.0, 2.0].into(); 
+    fn test_arr_rr() {
+        let instance: Instance = vec![1.0, 2.0, 2.0].into();
         let pred = instance.clone();
         let alg = adaptive_round_robin(&instance, &pred, 1.0);
         assert_eq!(13.0, alg);
     }
 
     #[test]
-    fn test_ftp() {
-        let instance: Instance = vec![1.0, 2.0, 3.0].into(); 
+    fn test_arr_ftp() {
+        let instance: Instance = vec![1.0, 2.0, 3.0].into();
         let pred = instance.clone();
         let alg = adaptive_round_robin(&instance, &pred, 0.0);
         assert_eq!(10.0, alg);
     }
-  
+
     #[test]
     fn test_arr() {
-        let instance: Instance = vec![2.0, 4.0].into(); 
+        let instance: Instance = vec![2.0, 4.0].into();
         let pred = instance.clone();
         let alg = adaptive_round_robin(&instance, &pred, 0.5);
         assert_eq!(9.0, alg);
     }
 
     #[quickcheck]
-    fn check_consistency(jobs: Vec<u64>) -> bool {
-        let instance: Instance = jobs.into_iter().map(|j| j as f64).collect::<Vec<f64>>().into(); 
+    fn check_arr_consistency(jobs: Vec<u64>) -> bool {
+        let instance: Instance = jobs
+            .into_iter()
+            .map(|j| j as f64)
+            .collect::<Vec<f64>>()
+            .into();
         let pred = instance.clone();
         instance.opt() == adaptive_round_robin(&instance, &pred, 0.0)
     }
 
-  
+    #[test]
+    fn test_two_stage_rr() {
+        let instance: Instance = vec![1.0, 2.0, 2.0].into();
+        let pred = instance.clone();
+        let alg = two_stage_schedule(&instance, &pred, 1.0);
+        assert_eq!(13.0, alg);
+    }
+
+    #[test]
+    fn test_two_stage_ftp() {
+        let instance: Instance = vec![1.0, 2.0, 3.0].into();
+        let pred = instance.clone();
+        let alg = two_stage_schedule(&instance, &pred, 0.0);
+        assert_eq!(10.0, alg);
+    }
+
+    #[test]
+    fn test_two_stage() {
+        let instance: Instance = vec![2.0, 4.0].into();
+        let pred = instance.clone();
+        let alg = two_stage_schedule(&instance, &pred, 0.5);
+        assert_eq!(10.0, alg);
+    }
+
+    #[quickcheck]
+    fn check_two_stage_consistency(jobs: Vec<u64>) -> bool {
+        let instance: Instance = jobs
+            .into_iter()
+            .map(|j| j as f64)
+            .collect::<Vec<f64>>()
+            .into();
+        let pred = instance.clone();
+        instance.opt() == two_stage_schedule(&instance, &pred, 0.0)
+    }
 }

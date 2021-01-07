@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 log = "0.4.11"
 simplelog = "0.9"
+num-integer = "0.1.44"
 
 [dev-dependencies]
 quickcheck = "0.9"
