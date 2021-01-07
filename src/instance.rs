@@ -1,5 +1,5 @@
-use crate::Opt;
-
+use crate::{Gen, Opt};
+use rand::distributions::{Distribution, Uniform};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Instance {
@@ -34,6 +34,23 @@ impl Opt for Instance {
         })
     }
 }
+
+
+pub struct InstanceGenParams {
+    pub length: usize,
+    pub min: f64,
+    pub max: f64
+}
+
+impl Gen<InstanceGenParams> for Instance {
+    fn generate(params: &InstanceGenParams) -> Instance {
+        let mut rng = rand::thread_rng();
+        let dist = Uniform::from(params.min..params.max);
+        let jobs: Vec<f64> = dist.sample_iter(&mut rng).take(params.length).collect();
+        jobs.into()
+    }
+}
+
 
 #[cfg(test)]
 mod test_instance {

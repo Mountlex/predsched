@@ -1,5 +1,4 @@
 use crate::{instance::Instance, pred::Prediction, Opt};
-use log::{info, trace};
 
 #[derive(Clone, Debug)]
 pub struct Job {
@@ -24,7 +23,7 @@ impl Job {
     }
 
     pub fn is_finished(&self) -> bool {
-        self.remaining == 0.0
+        self.remaining <= 0.0
     }
 }
 
@@ -97,7 +96,7 @@ impl ArrEnv {
             if active_job.is_finished() {
                 // active job finishes
                 self.cost += self.time;
-                println!("Finished job {} at time {}.", active_job.id, self.time);
+                //println!("Finished job {} at time {}.", active_job.id, self.time);
                 drop(active_job);
                 self.remaining_jobs.remove(0);
                 self.active_to_process = None;
@@ -158,10 +157,15 @@ pub fn two_stage_schedule(instance: &Instance, pred: &Prediction, lambda: f64) -
             .min_by(|a, b| a.remaining.partial_cmp(&b.remaining).unwrap())
             .unwrap()
             .remaining;
-
+        
+        //println!("Time: {}, Stepsize: {}", time, stepsize);
         if time + stepsize * n > max_rr {
             stepsize = (max_rr - time) / n;
         }
+        if stepsize == 0.0 {
+            break;
+        }
+
         time += stepsize * n; // divide rr equally
 
         jobs.iter_mut().for_each(|j| j.process(stepsize));
