@@ -16,6 +16,14 @@ impl Instance {
     }
 }
 
+impl From<Vec<f64>> for Instance {
+    fn from(lengths: Vec<f64>) -> Self {
+        Instance {
+            jobs: lengths
+        }
+    }
+}
+
 impl Opt for Instance {
     fn opt(&self) -> f64 {
         let mut jobs = self.jobs.clone();
@@ -24,5 +32,16 @@ impl Opt for Instance {
         jobs.into_iter().enumerate().fold(0.0, |acc, (idx, job)| {
             acc + (n - idx) as f64  * job
         })
+    }
+}
+
+#[cfg(test)]
+mod test_instance {
+    use super::*;
+
+    #[test]
+    fn test_opt() {
+        let instance: Instance = vec![1.0, 2.0, 4.0, 3.0].into();
+        assert_eq!(20.0, instance.opt())
     }
 }
