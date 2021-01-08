@@ -20,6 +20,7 @@ def get_data(filename):
     data = pd.read_csv(filename)
     data = data.round(3)
     data['arr_cr'] = data['arr'] / data['opt']
+    data['prr_cr'] = data['prr'] / data['opt']
     data['two_stage_cr'] = data['two_stage'] / data['opt']
     return data
 
@@ -31,6 +32,7 @@ def plot_eta(df, args):
     df = df[df['lambda'].isin(args.lambdas)]
 
     df_arr = df.loc[:, ['lambda', 'sigma', 'arr_cr']]
+    df_prr = df.loc[:, ['lambda', 'sigma', 'prr_cr']]
     df_ts = df.loc[:, ['lambda', 'sigma', 'two_stage_cr']]
 
     grouped_data = df_arr.groupby(['lambda', 'sigma']).mean().unstack('lambda')
@@ -42,6 +44,11 @@ def plot_eta(df, args):
     for label, l in list(grouped_data):
         grouped_data[(label, l)].plot(
             style='o--', markersize=4, linewidth=1.2, label=f"2-S (λ = {l:1.2f})", legend=True)
+
+    grouped_data = df_prr.groupby(['lambda', 'sigma']).mean().unstack('lambda')
+    for label, l in list(grouped_data):
+        grouped_data[(label, l)].plot(
+            style='s:', markersize=4, linewidth=1.2, label=f"PRR (λ = {l:1.2f})", legend=True)
 
     #plt.plot((0, max_bin), (1, 1), 'black')
     plt.xlabel('sigma')
