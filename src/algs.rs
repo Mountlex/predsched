@@ -85,7 +85,7 @@ impl ArrEnv {
                 .into_iter()
                 .min_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap();
-            println!("Stepsize: {}", stepsize);
+            //println!("Stepsize: {}", stepsize);
             self.time += stepsize * num_processing_jobs as f64; // divide rr equally
 
             active_job.process(stepsize);

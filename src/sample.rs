@@ -12,7 +12,7 @@ use csv::Writer;
 
 #[derive(Debug, StructOpt)]
 pub struct Cli {
-    #[structopt(long, default_value = "10")]
+    #[structopt(short = "l", long, default_value = "10")]
     instance_length: usize,
 
     #[structopt(short = "n")]
