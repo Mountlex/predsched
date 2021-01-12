@@ -1,9 +1,10 @@
 use crate::{Gen, Opt};
-use rand::distributions::{Distribution, Uniform};
+use rand::distributions::Distribution;
+use rand_distr::Pareto;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Instance {
-    pub jobs: Vec<f64>
+    pub jobs: Vec<f64>,
 }
 
 impl Instance {
@@ -18,9 +19,7 @@ impl Instance {
 
 impl From<Vec<f64>> for Instance {
     fn from(lengths: Vec<f64>) -> Self {
-        Instance {
-            jobs: lengths
-        }
+        Instance { jobs: lengths }
     }
 }
 
@@ -29,28 +28,30 @@ impl Opt for Instance {
         let mut jobs = self.jobs.clone();
         jobs.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let n = jobs.len();
-        jobs.into_iter().enumerate().fold(0.0, |acc, (idx, job)| {
-            acc + (n - idx) as f64  * job
-        })
+        jobs.into_iter()
+            .enumerate()
+            .fold(0.0, |acc, (idx, job)| acc + (n - idx) as f64 * job)
     }
 }
 
-
 pub struct InstanceGenParams {
     pub length: usize,
-    pub min: f64,
-    pub max: f64
+    pub alpha: f64,
 }
 
 impl Gen<InstanceGenParams> for Instance {
     fn generate(params: &InstanceGenParams) -> Instance {
         let mut rng = rand::thread_rng();
-        let dist = Uniform::from(params.min..params.max);
-        let jobs: Vec<f64> = dist.sample_iter(&mut rng).take(params.length).collect();
+        let dist = Pareto::new(1.0, params.alpha).unwrap();
+        
+        let jobs: Vec<f64> = dist
+            .sample_iter(&mut rng)
+            .take(params.length)
+            .map(|j| j as f64)
+            .collect();
         jobs.into()
     }
 }
-
 
 #[cfg(test)]
 mod test_instance {

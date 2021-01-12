@@ -27,8 +27,8 @@ pub struct Cli {
     #[structopt(long = "num-sigma", default_value = "10")]
     num_sigmas: usize,
 
-    #[structopt(long = "max-job-len", default_value = "200.0")]
-    max_job_len: f64,
+    #[structopt(short, long = "alpha", default_value = "1.1")]
+    alpha: f64,
 
     #[structopt(long = "num-lambdas", default_value = "5")]
     num_lambdas: usize,
@@ -54,8 +54,7 @@ impl Cli {
     pub fn sample(&self) -> Result<()> {
         let instance_params = InstanceGenParams {
             length: self.instance_length,
-            min: 1.0,
-            max: self.max_job_len,
+            alpha: self.alpha
         };
         let results: Vec<Entry> = (0..self.num_instances).into_par_iter().progress_count(self.num_instances as u64).flat_map(|_| {
             let instance = Instance::generate(&instance_params);
@@ -72,7 +71,12 @@ impl Cli {
                         let pred = pred.clone();
                         let arr = adaptive_round_robin(&instance, &pred, lambda, self.equal_share);
                         let two_stage = two_stage_schedule(&instance, &pred, lambda);
-                        let prr = preferential_round_robin(&instance, &pred, lambda);
+                        let prr = preferential_round_robin(&instance, &pred, lambda, 1.0);
+
+                        if lambda == 0.0 && arr != prr {
+                          //  println!("instance: {:?}, pred: {:?}, arr: {}, prr: {}", instance, pred, arr, prr);
+                        }
+
                         Entry {
                             lambda,
                             sigma,
