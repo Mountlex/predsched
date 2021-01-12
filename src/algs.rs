@@ -225,7 +225,7 @@ pub fn two_stage_schedule(instance: &Instance, pred: &Prediction, lambda: f64) -
     cost
 }
 
-pub fn preferential_round_robin(instance: &Instance, pred: &Prediction, lambda: f64, stepsize: f64) -> f64 {
+pub fn preferential_round_robin(instance: &Instance, pred: &Prediction, lambda: f64) -> f64 {
     let mut jobs: Vec<Job> = instance
         .jobs
         .iter()
@@ -238,18 +238,35 @@ pub fn preferential_round_robin(instance: &Instance, pred: &Prediction, lambda: 
     let mut time: f64 = 0.0;
     let mut cost: f64 = 0.0;
 
+
     while !jobs.is_empty() {
         let num_jobs = jobs.len();
+        
+        let active_scale = (1.0 - lambda) + lambda / num_jobs as f64;
+        let rr_scale = lambda / num_jobs as f64;
+        
+        let mut remaining_lengths: Vec<f64> = jobs.iter().skip(1).map(|j| j.remaining / rr_scale).collect();
         let active = jobs.first_mut().unwrap();
+        remaining_lengths.push(active.remaining / active_scale);
+        let stepsize = remaining_lengths
+                .into_iter()
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap();       
 
+        // stepsize is the duration after which the next jobs finishes.
         time += stepsize;
-        active.process((1.0 - lambda) * stepsize);
+        //println!("{}", stepsize);
+
+        active.process(stepsize * active_scale);
         if active.is_finished() {
             drop(active);
             jobs.remove(0);
             cost += time;
+            jobs.iter_mut().for_each(|j| j.process(stepsize * rr_scale));
+        } else {
+            jobs.iter_mut().skip(1).for_each(|j| j.process(stepsize * rr_scale));
         }
-        jobs.iter_mut().for_each(|j| j.process((lambda / num_jobs as f64) * stepsize));
+
         let finished = jobs.drain_filter(|j| j.is_finished());
         cost += finished.count() as f64 * time;
     }
@@ -337,7 +354,7 @@ mod test_algs {
     fn test_prr_rr() {
         let instance: Instance = vec![1.0, 2.0, 2.0].into();
         let pred = instance.clone();
-        let alg = preferential_round_robin(&instance, &pred, 1.0, 0.1);
+        let alg = preferential_round_robin(&instance, &pred, 1.0);
         assert_eq!(13.0, alg);
     }
 
@@ -345,7 +362,7 @@ mod test_algs {
     fn test_prr_ftp() {
         let instance: Instance = vec![1.5, 2.0, 3.0].into();
         let pred = instance.clone();
-        let alg = preferential_round_robin(&instance, &pred, 0.0, 0.1);
+        let alg = preferential_round_robin(&instance, &pred, 0.0);
         assert_eq!(11.5, alg);
     }
 

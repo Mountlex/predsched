@@ -49,7 +49,34 @@ impl Gen<InstanceGenParams> for Instance {
             .take(params.length)
             .map(|j| j as f64)
             .collect();
+
+        println!("Mean: {}, StdDev: {}", mean(&jobs).unwrap(), std_deviation(&jobs).unwrap());
         jobs.into()
+    }
+}
+
+fn mean(data: &[f64]) -> Option<f64> {
+    let sum = data.iter().sum::<f64>() as f64;
+    let count = data.len();
+
+    match count {
+        positive if positive > 0 => Some(sum / count as f64),
+        _ => None,
+    }
+}
+
+fn std_deviation(data: &[f64]) -> Option<f64> {
+    match (mean(data), data.len()) {
+        (Some(data_mean), count) if count > 0 => {
+            let variance = data.iter().map(|value| {
+                let diff = data_mean - (*value as f64);
+
+                diff * diff
+            }).sum::<f64>() / count as f64;
+
+            Some(variance.sqrt())
+        },
+        _ => None
     }
 }
 

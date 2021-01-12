@@ -15,7 +15,7 @@ impl Gen<PredGenParams<'_>> for Prediction {
         let preds: Vec<f64> = params.instance.jobs.iter().map(|job| {
             let dist = Normal::new(*job, params.sigma).unwrap();
             let p = dist.sample(&mut rng);
-            p.max(1.0)
+            p.abs().max(1.0)
         }).collect();
         preds.into()
     }

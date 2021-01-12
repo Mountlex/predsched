@@ -71,7 +71,7 @@ impl Cli {
                         let pred = pred.clone();
                         let arr = adaptive_round_robin(&instance, &pred, lambda, self.equal_share);
                         let two_stage = two_stage_schedule(&instance, &pred, lambda);
-                        let prr = preferential_round_robin(&instance, &pred, lambda, 1.0);
+                        let prr = preferential_round_robin(&instance, &pred, lambda);
 
                         if lambda == 0.0 && arr != prr {
                           //  println!("instance: {:?}, pred: {:?}, arr: {}, prr: {}", instance, pred, arr, prr);
