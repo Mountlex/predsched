@@ -29,7 +29,12 @@ impl Job {
     }
 }
 
-pub fn adaptive_round_robin(instance: &Instance, pred: &Prediction, lambda: f64, equal_share: bool) -> f64 {
+pub fn adaptive_round_robin(
+    instance: &Instance,
+    pred: &Prediction,
+    lambda: f64,
+    equal_share: bool,
+) -> f64 {
     let mut jobs: Vec<Job> = instance
         .jobs
         .iter()
@@ -39,110 +44,82 @@ pub fn adaptive_round_robin(instance: &Instance, pred: &Prediction, lambda: f64,
         .collect();
     jobs.sort_by(|a, b| a.predicted_length.partial_cmp(&b.predicted_length).unwrap());
 
-    let mut env = ArrEnv {
-        remaining_jobs: jobs,
-        rr: vec![],
-        time: 0.0,
-        active_to_process: None,
-        cost: 0.0,
-        lambda,
-        equal_share
-    };
+    // jobs in round-robin mode
+    let mut rr: Vec<Job> = vec![];
 
-    while env.simulate() {}
+    let mut time: f64 = 0.0;
+    let mut cost: f64 = 0.0;
 
-    env.cost
-}
+    loop {
+        if !jobs.is_empty() {
+            let num_unfinished_jobs = jobs.len() + rr.len();
+            let num_remaining_jobs = jobs.len();
 
-struct ArrEnv {
-    /// The first job is currently active; sorted by predicted processing time.
-    remaining_jobs: Vec<Job>,
+            let active_scale = if equal_share {
+                1.0
+            } else {
+                num_unfinished_jobs as f64 / num_remaining_jobs as f64
+            };
+            let rr_scale = if equal_share {
+                1.0
+            } else {
+                num_unfinished_jobs as f64
+            };
 
-    /// rr queue (idx, remaining to process)
-    rr: Vec<Job>,
+            let active_job = jobs.first_mut().unwrap();
+            let active_remaining = (1.0 - lambda) * active_job.predicted_length
+                - (active_job.total_length - active_job.remaining);
 
-    /// current time
-    time: f64,
-
-    /// to process by algorithm
-    active_to_process: Option<f64>,
-
-    cost: f64,
-
-    lambda: f64,
-
-    equal_share: bool,
-}
-
-impl ArrEnv {
-    fn simulate(&mut self) -> bool {
-        let lambda = self.lambda;
-        if !self.remaining_jobs.is_empty() {
-            let num_unfinished_jobs = self.remaining_jobs.len() + self.rr.len();
-            let num_remaining_jobs = self.remaining_jobs.len();
-
-            let active_scale = if self.equal_share { 1.0 } else { num_unfinished_jobs as f64 / num_remaining_jobs as f64 };
-            let rr_scale = if self.equal_share { 1.0 } else { num_unfinished_jobs as f64 };
-
-            let active_job = self.remaining_jobs.first_mut().unwrap();
-            let active_alg = self
-                .active_to_process
-                .unwrap_or_else(|| (1.0 - lambda) * active_job.predicted_length);
-
-
-            let mut remaining_lengths: Vec<f64> = self.rr.iter().map(|j| j.remaining * rr_scale).collect();
-            remaining_lengths.push(active_alg.min(active_job.total_length) * active_scale);
+            let mut remaining_lengths: Vec<f64> =
+                rr.iter().map(|j| j.remaining * rr_scale).collect();
+            remaining_lengths.push(active_remaining.min(active_job.total_length) * active_scale);
             let num_processing_jobs = remaining_lengths.len();
-            
+
             let stepsize = remaining_lengths
                 .into_iter()
                 .min_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap();
             //println!("Stepsize: {}", stepsize);
-            self.time += if self.equal_share { stepsize * num_processing_jobs as f64 } else { stepsize };
+            time += if equal_share {
+                stepsize * num_processing_jobs as f64
+            } else {
+                stepsize
+            };
             active_job.process(stepsize / active_scale);
-            self.rr.iter_mut().for_each(|j| j.process(stepsize / rr_scale));
-            let finished = self.rr.drain_filter(|j| j.is_finished());
-            self.cost += finished.count() as f64 * self.time;
+            rr.iter_mut().for_each(|j| j.process(stepsize / rr_scale));
+            let finished = rr.drain_filter(|j| j.is_finished());
+            cost += finished.count() as f64 * time;
 
-            //println!("Time: {}", self.time);
+            //println!("Time: {}", time);
             if active_job.is_finished() {
                 // active job finishes
-                self.cost += self.time;
-                //println!("Finished job {} at time {}.", active_job.id, self.time);
+                cost += time;
+                //println!("Finished job {} at time {}.", active_job.id, time);
                 drop(active_job);
-                self.remaining_jobs.remove(0);
-                self.active_to_process = None;
-            } else if approx_eq!(f64, stepsize / active_scale, active_alg, ulps = 1) {
+                jobs.remove(0);
+            } else if approx_eq!(f64, stepsize / active_scale, active_remaining, ulps = 1) {
                 // alg decides to move the job to rr
-                let j = self.remaining_jobs.remove(0);
-                self.rr.push(j);
-                self.active_to_process = None;
-            } else {
-                // some rr finished
-                self.active_to_process = Some(active_alg - (stepsize / active_scale));
+                let j = jobs.remove(0);
+                rr.push(j);
             }
-            return true;
-        } else {
-            if !self.rr.is_empty() {
-                // RR remaining jobs
-                let stepsize = self
-                    .rr
-                    .iter()
-                    .min_by(|a, b| a.remaining.partial_cmp(&b.remaining).unwrap())
-                    .unwrap()
-                    .remaining;
-                self.time += stepsize * self.rr.len() as f64; // divide rr equally
+        } else if !rr.is_empty() {
+            // RR remaining jobs
+            let stepsize = rr
+                .iter()
+                .min_by(|a, b| a.remaining.partial_cmp(&b.remaining).unwrap())
+                .unwrap()
+                .remaining;
+            time += stepsize * rr.len() as f64; // divide rr equally
 
-                self.rr.iter_mut().for_each(|j| j.process(stepsize));
-                let finished = self.rr.drain_filter(|j| j.is_finished());
-                self.cost += finished.count() as f64 * self.time;
-                return true;
-            } else {
-                return false;
-            }
+            rr.iter_mut().for_each(|j| j.process(stepsize));
+            let finished = rr.drain_filter(|j| j.is_finished());
+            cost += finished.count() as f64 * time;
+        } else {
+            break;
         }
     }
+
+    cost
 }
 
 pub fn two_stage_schedule(instance: &Instance, pred: &Prediction, lambda: f64) -> f64 {
@@ -170,7 +147,7 @@ pub fn two_stage_schedule(instance: &Instance, pred: &Prediction, lambda: f64) -
             .min_by(|a, b| a.remaining.partial_cmp(&b.remaining).unwrap())
             .unwrap()
             .remaining;
-        
+
         //println!("Time: {}, Stepsize: {}", time, stepsize);
         if time + stepsize * n > max_rr {
             stepsize = (max_rr - time) / n;
@@ -238,20 +215,23 @@ pub fn preferential_round_robin(instance: &Instance, pred: &Prediction, lambda: 
     let mut time: f64 = 0.0;
     let mut cost: f64 = 0.0;
 
-
     while !jobs.is_empty() {
         let num_jobs = jobs.len();
-        
+
         let active_scale = (1.0 - lambda) + lambda / num_jobs as f64;
         let rr_scale = lambda / num_jobs as f64;
-        
-        let mut remaining_lengths: Vec<f64> = jobs.iter().skip(1).map(|j| j.remaining / rr_scale).collect();
+
+        let mut remaining_lengths: Vec<f64> = jobs
+            .iter()
+            .skip(1)
+            .map(|j| j.remaining / rr_scale)
+            .collect();
         let active = jobs.first_mut().unwrap();
         remaining_lengths.push(active.remaining / active_scale);
         let stepsize = remaining_lengths
-                .into_iter()
-                .min_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap();       
+            .into_iter()
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
 
         // stepsize is the duration after which the next jobs finishes.
         time += stepsize;
@@ -264,14 +244,16 @@ pub fn preferential_round_robin(instance: &Instance, pred: &Prediction, lambda: 
             cost += time;
             jobs.iter_mut().for_each(|j| j.process(stepsize * rr_scale));
         } else {
-            jobs.iter_mut().skip(1).for_each(|j| j.process(stepsize * rr_scale));
+            jobs.iter_mut()
+                .skip(1)
+                .for_each(|j| j.process(stepsize * rr_scale));
         }
 
         let finished = jobs.drain_filter(|j| j.is_finished());
         cost += finished.count() as f64 * time;
     }
 
-    cost 
+    cost
 }
 
 #[cfg(test)]
@@ -305,14 +287,18 @@ mod test_algs {
     }
 
     #[quickcheck]
-    fn check_arr_consistency(jobs: Vec<f64>) -> bool {
+    fn check_arr_consistency(jobs: Vec<u64>) -> bool {
         let instance: Instance = jobs
             .into_iter()
-            .map(|j| j.abs())
+            .map(|j| j as f64)
             .collect::<Vec<f64>>()
             .into();
         let pred = instance.clone();
-        approx_eq!(f64, instance.opt(), adaptive_round_robin(&instance, &pred, 0.0, true))
+        approx_eq!(
+            f64,
+            instance.opt(),
+            adaptive_round_robin(&instance, &pred, 0.0, true)
+        )
     }
 
     #[test]
@@ -365,6 +351,4 @@ mod test_algs {
         let alg = preferential_round_robin(&instance, &pred, 0.0);
         assert_eq!(11.5, alg);
     }
-
- 
 }
