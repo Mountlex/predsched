@@ -56,8 +56,11 @@ impl Cli {
             length: self.instance_length,
             alpha: self.alpha
         };
-        let results: Vec<Entry> = (0..self.num_instances).into_par_iter().progress_count(self.num_instances as u64).flat_map(|_| {
-            let instance = Instance::generate(&instance_params);
+        let instances: Vec<Instance> = (0..self.num_instances).map(|_| 
+            Instance::generate(&instance_params)
+        ).collect();
+        analyse_instances(&instances);
+        let results: Vec<Entry> = instances.into_par_iter().progress_count(self.num_instances as u64).flat_map(|instance| {
             let opt = instance.opt();
             (0..self.num_sigmas).flat_map(|sigma_num| {
                 let sigma = self.step_sigma * sigma_num as f64;

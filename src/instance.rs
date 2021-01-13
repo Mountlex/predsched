@@ -50,9 +50,17 @@ impl Gen<InstanceGenParams> for Instance {
             .map(|j| j as f64)
             .collect();
 
-        println!("Mean: {}, StdDev: {}", mean(&jobs).unwrap(), std_deviation(&jobs).unwrap());
+        
         jobs.into()
     }
+}
+
+pub fn analyse_instances(instances: &Vec<Instance>) {
+    let flat: Vec<f64> = instances.iter().flat_map(|instance| instance.jobs.clone()).collect();
+    println!("Instance Generation Summary:");
+    println!("  Mean: {}", mean(&flat).unwrap());
+    println!("  StdDev: {}", std_deviation(&flat).unwrap());
+    println!("  Max: {}", flat.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap());
 }
 
 fn mean(data: &[f64]) -> Option<f64> {
