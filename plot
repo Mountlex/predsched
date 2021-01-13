@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from cycler import cycler
 import argparse
 import sys
 import os
@@ -25,7 +26,7 @@ def get_data(filename):
     return data
 
 
-
+colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
 
 
 def plot_eta(df, args):
@@ -34,6 +35,8 @@ def plot_eta(df, args):
     df_arr = df.loc[:, ['lambda', 'sigma', 'arr_cr']]
     df_prr = df.loc[:, ['lambda', 'sigma', 'prr_cr']]
     df_ts = df.loc[:, ['lambda', 'sigma', 'two_stage_cr']]
+
+    plt.rc('axes', prop_cycle=(cycler('color', colors[0:len(args.lambdas)])))
 
     grouped_data = df_arr.groupby(['lambda', 'sigma']).mean().unstack('lambda')
     for label, l in list(grouped_data):
