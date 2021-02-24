@@ -10,6 +10,9 @@ mod instance;
 mod pred;
 mod algs;
 
+mod tables;
+mod rtnorm;
+
 pub use instance::*;
 pub use pred::*;
 pub use algs::*;
