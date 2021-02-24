@@ -1,7 +1,14 @@
 use crate::{Gen, instance::Instance};
-use rand_distr::{Distribution, Normal};
+use rand_distr::{Distribution, Normal, Uniform};
 
 pub type Prediction = Instance;
+
+use libc::{c_int, c_double};
+
+#[link(name="rtnorm")]
+extern {
+  fn gen_rtnorm(a: c_double, b: c_double,mu: c_double, sigma: c_double) -> c_double;
+}
 
 pub struct PredGenParams<'a> {
     pub instance: &'a Instance,
@@ -10,14 +17,11 @@ pub struct PredGenParams<'a> {
 
 impl Gen<PredGenParams<'_>> for Prediction {
     fn generate(params: &PredGenParams) -> Prediction {
-        let mut rng = rand::thread_rng();
+        //let mut rng = rand::thread_rng();
         
         let preds: Vec<f64> = params.instance.jobs.iter().map(|job| {
-            let dist = Normal::new(*job, params.sigma).unwrap();
-            let mut p = dist.sample(&mut rng);
-            while p < 1.0 {
-                p = dist.sample(&mut rng);
-            }
+            //let dist = Normal::new(*job, params.sigma).unwrap();
+            let  p = unsafe { gen_rtnorm(1.0, 1000000.0, *job, params.sigma) };
             p
         }).collect();
         preds.into()

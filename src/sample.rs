@@ -45,7 +45,7 @@ struct Entry {
     lambda: f64,
     sigma: f64,
     opt: f64,
-    arr: f64,
+    drr: f64,
     prr: f64,
     two_stage: f64
 }
@@ -72,11 +72,11 @@ impl Cli {
                     let pred = Prediction::generate(&pred_params);
                     linspace(0.0, 1.0, self.num_lambdas).map(|lambda| {
                         let pred = pred.clone();
-                        let arr = adaptive_round_robin(&instance, &pred, lambda, self.equal_share);
+                        let drr = delayed_round_robin(&instance, &pred, lambda, self.equal_share);
                         let two_stage = two_stage_schedule(&instance, &pred, lambda);
                         let prr = preferential_round_robin(&instance, &pred, lambda);
 
-                        if lambda == 0.0 && arr != prr {
+                        if lambda == 0.0 && drr != prr {
                           //  println!("instance: {:?}, pred: {:?}, arr: {}, prr: {}", instance, pred, arr, prr);
                         }
 
@@ -84,7 +84,7 @@ impl Cli {
                             lambda,
                             sigma,
                             opt,
-                            arr,
+                            drr,
                             prr,
                             two_stage
                         }

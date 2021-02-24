@@ -20,7 +20,7 @@ def create_arg_parser():
 def get_data(filename):
     data = pd.read_csv(filename)
     data = data.round(3)
-    data['arr_cr'] = data['arr'] / data['opt']
+    data['drr_cr'] = data['drr'] / data['opt']
     data['prr_cr'] = data['prr'] / data['opt']
     data['two_stage_cr'] = data['two_stage'] / data['opt']
     return data
@@ -32,16 +32,16 @@ colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:b
 def plot_eta(df, args):
     df = df[df['lambda'].isin(args.lambdas)]
 
-    df_arr = df.loc[:, ['lambda', 'sigma', 'arr_cr']]
+    df_drr = df.loc[:, ['lambda', 'sigma', 'drr_cr']]
     df_prr = df.loc[:, ['lambda', 'sigma', 'prr_cr']]
     df_ts = df.loc[:, ['lambda', 'sigma', 'two_stage_cr']]
 
     plt.rc('axes', prop_cycle=(cycler('color', colors[0:len(args.lambdas)])))
 
-    grouped_data = df_arr.groupby(['lambda', 'sigma']).mean().unstack('lambda')
+    grouped_data = df_drr.groupby(['lambda', 'sigma']).mean().unstack('lambda')
     for label, l in list(grouped_data):
         grouped_data[(label, l)].plot(
-            style='D-', markersize=4, linewidth=1.2, label=f"ARR (λ = {l:1.2f})", legend=True)
+            style='D-', markersize=4, linewidth=1.2, label=f"DRR (λ = {l:1.2f})", legend=True)
 
     grouped_data = df_ts.groupby(['lambda', 'sigma']).mean().unstack('lambda')
     for label, l in list(grouped_data):
@@ -62,8 +62,8 @@ def plot_eta(df, args):
 
 
     fig = plt.gcf()
-    fig.set_dpi(500)
-    fig.set_size_inches(4,2.5)
+    fig.set_dpi(400)
+    fig.set_size_inches(3,2)
     # fig.subplots_adjust(right=0.7)
     #fig.savefig("result.png", dpi=400)
 

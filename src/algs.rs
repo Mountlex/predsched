@@ -29,7 +29,7 @@ impl Job {
     }
 }
 
-pub fn adaptive_round_robin(
+pub fn delayed_round_robin(
     instance: &Instance,
     pred: &Prediction,
     lambda: f64,
@@ -266,7 +266,7 @@ mod test_algs {
     fn test_arr_rr() {
         let instance: Instance = vec![1.0, 2.0, 2.0].into();
         let pred = instance.clone();
-        let alg = adaptive_round_robin(&instance, &pred, 1.0, true);
+        let alg = delayed_round_robin(&instance, &pred, 1.0, true);
         assert_eq!(13.0, alg);
     }
 
@@ -274,7 +274,7 @@ mod test_algs {
     fn test_arr_ftp() {
         let instance: Instance = vec![1.5, 2.5, 3.5].into();
         let pred = instance.clone();
-        let alg = adaptive_round_robin(&instance, &pred, 0.0, true);
+        let alg = delayed_round_robin(&instance, &pred, 0.0, true);
         assert_eq!(instance.opt(), alg);
     }
 
@@ -282,7 +282,7 @@ mod test_algs {
     fn test_arr() {
         let instance: Instance = vec![2.0, 4.0].into();
         let pred = instance.clone();
-        let alg = adaptive_round_robin(&instance, &pred, 0.5, false);
+        let alg = delayed_round_robin(&instance, &pred, 0.5, false);
         assert_eq!(9.0, alg);
     }
 
@@ -297,7 +297,7 @@ mod test_algs {
         approx_eq!(
             f64,
             instance.opt(),
-            adaptive_round_robin(&instance, &pred, 0.0, true)
+            delayed_round_robin(&instance, &pred, 0.0, true)
         )
     }
 
