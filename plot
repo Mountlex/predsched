@@ -20,9 +20,9 @@ def create_arg_parser():
 def get_data(filename):
     data = pd.read_csv(filename)
     data = data.round(3)
-    data['arr_cr'] = data['arr'] / data['opt']
+    data['phase_cr'] = data['phase'] / data['opt']
     data['prr_cr'] = data['prr'] / data['opt']
-    data['two_stage_cr'] = data['two_stage'] / data['opt']
+    data['simple_err_rel'] = data['two_stage'] / data['opt']
     return data
 
 
